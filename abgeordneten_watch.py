@@ -12,18 +12,8 @@ import os
 import json
 import csv
 
-# firefox_options = Options()
-# firefox_options.add_argument("--headless")
-# # chrome_options.headless = True - info, can be also used
-#
-# driver = webdriver.Firefox(options=firefox_options)
-# start_url = "https://www.abgeordnetenwatch.de/abstimmungen/fortsetzung-des-bundeswehreinsatzes-im-rahmen-der-nato-operation-sea-guardian-im-0"
-#
-# driver.get(start_url)
-#
-# print(driver.page_source.encode("utf-8"))
-
-# driver.quit()
+# Hier folgen Klassen
+# darunter folgen Funktionen, die diese verwenden
 
 class Web_Parser:
     def __init__(self):
@@ -136,6 +126,12 @@ class Scraper_abstimmungen_und_abgeordnete:
             if items not in self.abstimmungen_url:
                 self.abstimmungen_url.append(items)
 
+    def open_json_dict(self, string_name):
+        with open(os.getcwd + "/Abstimmung/" + string_name + ".json", "r", encoding="utf-8") as f:
+            dict = json.load(f)
+
+        return dict
+
     # holt die abstimmungen und abgeordneten und erstellt ein dict
     # nutzt self.driver und get_html_and_soup(url) und self.parser
     def abstimm_seite_get(self, url, string_rename):
@@ -143,39 +139,29 @@ class Scraper_abstimmungen_und_abgeordnete:
         self.string_rename = string_rename
         appendix = "/tabelle#filterbar?constituency=All&fraction=All&page=0"
         starting_page = 0
-        self.url = url + appendix
-        self.page_abgeordnete_stimmverhalten = {}
+        self.page_abgeordnete_stimmverhalten = self.open_json_dict(self.string_rename)
+
+        print("check - iterate_value = " + str(self.iterate_value))
 
         # diese zeile wird später noch bearbeitet
         #first_url = url + appendix + str(starting_page)
 
-        soup_item = self.parser.get_html_and_soup(url + appendix)
-        time.sleep(5)
+        while url.endswith(" "):
+            url = url[:-1]
 
-        # webpage_name = url[url.rfind("/")+1:]
-        #
-        # while webpage_name.endswith(" "):
-        #     webpage_name = webpage_name[:-1]
-        #
-        # try:
-        #     if type(int(webpage_name)) is int:
-        #         temp_url = url
-        #         while temp_url.count("/") > 1:
-        #             temp_url = temp_url[temp_url.find("/")+1:]
-        #         webpage_name = temp_url
-        # except Exception as e:
-        #     pass
+        self.url = url + appendix
+
+        soup_item = self.parser.get_html_and_soup(self.url)
+        time.sleep(5)
 
         print("hole - " + self.string_rename)
         print(self.url)
 
-        for items in soup_item.find_all("a"):
-            try:
-                if items.span is not None:
-                    if items.span.string == "Letzte Seite":
-                        new_item = items.get("href")
-            except Exception as e:
-                continue
+        new_item = None
+        while new_item is None:
+            new_item = soup_item.find("a", title='Zur letzten Seite')
+
+        new_item = new_item["href"]
 
         try:
             last_page = int(new_item[new_item.find("&page=")+6:])
@@ -324,13 +310,6 @@ class Scraper_abstimmungen_und_abgeordnete:
         # schreibe meta info
         string = "{};{};{}".format(self.string_rename, str(abgeordnete_ges), str(len(self.page_abgeordnete_stimmverhalten.keys())))
 
-        # if self.csv_data is not None:
-        #     if self.iterate_value is True and self.dict_ident is True:
-        #         for iterating_objects in self.csv_data:
-        #             if iterating_objects.find(self.string_rename) >= 0:
-        #                 del self.csv_data[self.csv_data.index(iterating_objects)]
-        #         self.extra_items.append([self.string_rename, abgeordnete_ges, len(self.page_abgeordnete_stimmverhalten.keys())])
-        # else:
         with open(os.getcwd() + "/Abstimmung/meta_info.csv", "a") as f:
             f.write(string + "\n")
 
@@ -355,11 +334,7 @@ class Base_methods:
     def write_to_html(self, html, name):
         pass
 
-# Ab hier folgen die aufrufenden Funktionen
-
-    # driver = Web_Parser()
-    # driver.webdriver_create()
-    # driver.webdriver_quit()
+# Ab hier folgen die abrufenden Funktionen der Klassen
 
 def get_abstimm_urls():
 
@@ -369,21 +344,6 @@ def get_abstimm_urls():
 
     base = Base_methods()
     base.write_to_file_text(abstimm.abstimmungen_url, "abstimmungen.txt")
-
-def get_stimmverhalten_test():
-    url = "https://www.abgeordnetenwatch.de/abstimmungen/verlaengerung-des-bundeswehreinsatzes-in-suedsudan-friedensmission-unmiss"
-# beispiel
-    abstimm = Scraper_abstimmungen_und_abgeordnete()
-    try:
-        dict = abstimm.abstimm_seite_get(url)
-    except Exception as e:
-        print(e)
-        abstimm.parser.webdriver_quit(abstimm.driver)
-
-    with open("test.json", "w", encoding='utf-8') as f:
-       json.dump(dict, f, ensure_ascii=False)
-
-    abstimm.parser.webdriver_quit(abstimm.driver)
 
 # übergibt alle urls nacheinander an scraper_list usw.
 def iterate_through_all_urls():
@@ -455,10 +415,23 @@ def verify_data_integrity():
     with open(path + "/Abstimmung/meta_info.csv", "a") as f:
         f.write("#########################################################\n")
 
-    file = open(path + "/Abstimmung/meta_info.csv", newline='')
+    with open(path + "Abstimmung/meta_info.csv", "r") as f:
+        repo = f.readlines()
+        list_index_length = len(repo) -1
+        while list_index_length >= 0:
+            if repo[list_index_length] == "#########################################################\n":
+                start_value = list_index_length
+                break
+            else:
+                list_index_length -= 1
+
+    file = open(path + "/Abstimmung/meta_info.csv", "r", newline='')
     csv_data = csv.reader(file, delimiter=';')
 
     for elements in csv_data:
+        if csv_data.index(elements) <= start_value:
+            continue
+
         abstimm_name = elements[0]
         # hier wird geschaut, ob ich vorher schonmal ein / durch ein - ausgetauscht habe
         try:
@@ -483,7 +456,7 @@ def verify_data_integrity():
             if exit_value == 1:
                 continue
             if urls.find(abstimm_name) >= 0:
-                cur_url = urls
+                cur_url = urls.replace("\n", "")
                 exit_value = 1
 
         if cur_url is None:
@@ -498,35 +471,28 @@ def verify_data_integrity():
         save_page_name = path + "/Abstimmung/" + elements[0] + ".json"
         print("Wiederhole - " + elements[0] + "\n")
 
-        #try:
-        dict = abstimm.abstimm_seite_get(cur_url, elements[0]) # elements ist das gerade iterierte objekt
-        #except Exception as e:
-        #print(e)
-        abstimm.parser.webdriver_quit(abstimm.driver)
+        try:
+            dict = abstimm.abstimm_seite_get(cur_url, elements[0]) # elements ist das gerade iterierte objekt
+        except Exception as e:
+            print(e)
+            abstimm.parser.webdriver_quit(abstimm.driver)
 
         with open(save_page_name, "w", encoding="utf-8") as f:
             json.dump(dict, f, ensure_ascii=False)
+
+        abgeschlossene_abstimmung_liste.append(abstimm)
 
     file.close()
 
     print("Alle Objekte durchgegangen")
 
-    # file = open(path + "/Abstimmung/meta_info.csv", newline='')
-    # csv_data = csv.reader(file, delimiter=';')
-    #
-    # counter = 0
-    # list_end = []
-    # for rows in csv_data:
-    #     if rows[1] != rows[2]:
-    #         print("Ungleicher Wert an Stelle" + csv_data.index(rows))
-    #         counter += 1
-    #         list_end.append(rows[0])
-    #
-    # if len(list_end) > 0:
-    #     print("Es sind noch " + counter + " Elemente mit ungleichen Werten im Index\nDiese sind: \n")
-    #     for items in list_end:
-    #         print(items)
-    # else:
-    #     print("Alle Objekte sind nach integrität geprüft - Erfolgreich")
+if __name__ == "__main__":
 
-verify_data_integrity()
+    print("Sammelt Informationen über alle Bundestagsabstimmungen")
+    get_abstimm_urls()
+
+    print("Durchsucht alle Bundestagsabstimmungen nach verwertbaren Informationen")
+    iterate_through_all_urls()
+
+    print("Verifiziert die gesammelten Daten auf Komplettheit")
+    verify_data_integrity()
